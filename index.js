@@ -10,32 +10,38 @@ import {
   Events,
 } from 'discord.js';
 
-// Express Setup
+// === EXPRESS SETUP ===
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Page de base (optionnelle)
 app.get('/', (req, res) => {
   res.send('🎨 Bot de dessin opérationnel !');
 });
 
-// Lancer Express
 app.listen(PORT, () => {
   console.log(`🎉 Serveur Express lancé sur http://localhost:${PORT}`);
 });
 
-// Discord Client
+// === DISCORD BOT SETUP ===
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
-// Lors du démarrage du bot
 client.once(Events.ClientReady, async () => {
   console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
 
   try {
+    console.log('🔍 Recherche du salon...');
     const channel = await client.channels.fetch(process.env.CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) throw new Error('Salon introuvable ou non textuel');
+    if (!channel) {
+      console.error('❌ Salon non trouvé');
+      return;
+    }
+    if (!channel.isTextBased()) {
+      console.error('❌ Le salon trouvé n’est pas textuel');
+      return;
+    }
+    console.log(`✅ Salon trouvé : ${channel.name}`);
 
     const drawButton = new ButtonBuilder()
       .setCustomId('draw_button')
@@ -44,6 +50,7 @@ client.once(Events.ClientReady, async () => {
 
     const row = new ActionRowBuilder().addComponents(drawButton);
 
+    console.log('➡️ Envoi du message...');
     await channel.send({
       content: '🎨 Clique ci-dessous pour créer une œuvre artistique :',
       components: [row],
@@ -55,8 +62,7 @@ client.once(Events.ClientReady, async () => {
   }
 });
 
-// Réaction au clic sur le bouton
-client.on(Events.InteractionCreate, async interaction => {
+client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isButton()) return;
 
   if (interaction.customId === 'draw_button') {
@@ -67,5 +73,4 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// Connexion du bot à Discord
 client.login(process.env.DISCORD_TOKEN);
