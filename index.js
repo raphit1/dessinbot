@@ -62,7 +62,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.customId === 'draw_button') {
     await interaction.reply({
       ephemeral: true,
-      content: `🖌️ Clique ici pour dessiner : https://ton-app-drawing.vercel.app\nUne fois terminé, poste ton image ici avec un titre !`,
+      content: `🖌️ Clique ici pour dessiner : https://dessin.onrender.com\nUne fois terminé, poste ton image ici avec un titre !`,
     });
   }
 });
