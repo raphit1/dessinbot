@@ -1,3 +1,5 @@
+// index.js (bot + serveur express complet)
+
 import 'dotenv/config';
 import express from 'express';
 import {
@@ -10,28 +12,29 @@ import {
   AttachmentBuilder,
 } from 'discord.js';
 
-const app = express();
+// Config
+const TOKEN = process.env.DISCORD_TOKEN;
+const CHANNEL_ID = process.env.CHANNEL_ID;
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+if (!TOKEN || !CHANNEL_ID) {
+  console.error('❌ Variables d\'environnement manquantes !');
+  process.exit(1);
+}
 
-// Page simple pour test
+// Express setup
+const app = express();
+app.use(express.json()); // Important pour parser JSON body
+
 app.get('/', (req, res) => {
   res.send('🎨 Bot de dessin opérationnel !');
 });
 
-app.listen(PORT, () => {
-  console.log(`🎉 Serveur Express lancé sur http://localhost:${PORT}`);
-});
-
-// Discord Client
+// Discord client setup
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
-const CHANNEL_ID = process.env.CHANNEL_ID;
-
-// Fonction pour envoyer le message “Clique pour dessiner” dans le channel
 async function sendDrawPrompt() {
   try {
     const channel = await client.channels.fetch(CHANNEL_ID);
@@ -48,33 +51,12 @@ async function sendDrawPrompt() {
       content: '🎨 Clique ci-dessous pour créer une œuvre artistique :',
       components: [row],
     });
-
-    console.log('✅ Message de bienvenue envoyé dans le salon');
-  } catch (error) {
-    console.error('❌ Erreur lors de l’envoi du message de bienvenue :', error);
+  } catch (e) {
+    console.error('❌ Erreur en envoyant le prompt de dessin:', e);
   }
 }
 
-client.once(Events.ClientReady, async () => {
-  console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
-
-  // Envoi du message initial au démarrage
-  await sendDrawPrompt();
-});
-
-// Interaction bouton “Dessiner”
-client.on(Events.InteractionCreate, async interaction => {
-  if (!interaction.isButton()) return;
-
-  if (interaction.customId === 'draw_button') {
-    await interaction.reply({
-      ephemeral: true,
-      content: `🖌️ Clique ici pour dessiner : https://dessin.onrender.com\nUne fois terminé, poste ton image ici avec un titre !`,
-    });
-  }
-});
-
-// Route pour recevoir l'œuvre dessinée et la poster dans le channel Discord
+// Route POST pour recevoir l'œuvre depuis le front
 app.post('/submit-artwork', async (req, res) => {
   const { image, title } = req.body;
 
@@ -86,7 +68,6 @@ app.post('/submit-artwork', async (req, res) => {
     const channel = await client.channels.fetch(CHANNEL_ID);
     if (!channel || !channel.isTextBased()) throw new Error('Salon introuvable ou non textuel');
 
-    // Extraction base64 (enlève le "data:image/png;base64," si présent)
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
@@ -97,7 +78,6 @@ app.post('/submit-artwork', async (req, res) => {
       files: [attachment],
     });
 
-    // Après envoi, renvoyer le message pour proposer de dessiner à nouveau
     await sendDrawPrompt();
 
     return res.json({ status: 'Artwork envoyé avec succès !' });
@@ -107,5 +87,24 @@ app.post('/submit-artwork', async (req, res) => {
   }
 });
 
-// Connexion du bot à Discord
-client.login(process.env.DISCORD_TOKEN);
+client.once(Events.ClientReady, async () => {
+  console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
+  await sendDrawPrompt();
+});
+
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === 'draw_button') {
+    await interaction.reply({
+      ephemeral: true,
+      content: `🖌️ Clique ici pour dessiner : https://dessin.onrender.com\nUne fois terminé, poste ton image ici avec un titre !`,
+    });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`🎉 Serveur Express lancé sur http://localhost:${PORT}`);
+});
+
+client.login(TOKEN);
