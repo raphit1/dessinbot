@@ -1,16 +1,20 @@
 {
   "name": "dessin-bot",
   "version": "1.0.0",
-  "type": "module",
+  "description": "Bot Discord pour dessiner et poster les œuvres",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "body-parser": "^1.20.2",
-    "cors": "^2.8.5",
     "discord.js": "^14.14.1",
-    "dotenv": "^16.3.1",
-    "express": "^4.19.2"
-  }
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.4.0",
+    "body-parser": "^1.20.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
