@@ -1,110 +1,106 @@
-// index.js (bot + serveur express complet)
-
 import 'dotenv/config';
 import express from 'express';
 import {
   Client,
   GatewayIntentBits,
+  Events,
   ButtonBuilder,
   ButtonStyle,
   ActionRowBuilder,
-  Events,
   AttachmentBuilder,
 } from 'discord.js';
 
-// Config
-const TOKEN = process.env.DISCORD_TOKEN;
-const CHANNEL_ID = process.env.CHANNEL_ID;
-const PORT = process.env.PORT || 3000;
-
-if (!TOKEN || !CHANNEL_ID) {
-  console.error('❌ Variables d\'environnement manquantes !');
-  process.exit(1);
-}
-
-// Express setup
 const app = express();
-app.use(express.json()); // Important pour parser JSON body
+const PORT = process.env.PORT || 3000;
+app.use(express.json({ limit: '10mb' }));
 
-app.get('/', (req, res) => {
-  res.send('🎨 Bot de dessin opérationnel !');
-});
-
-// Discord client setup
+// Client Discord
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
 });
 
-async function sendDrawPrompt() {
+// Route Express de base
+app.get('/', (req, res) => {
+  res.send('🎨 Le bot de dessin est actif !');
+});
+
+// Réception des dessins du site
+app.post('/submit-artwork', async (req, res) => {
   try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) throw new Error('Salon introuvable ou non textuel');
+    const { image, title } = req.body;
+    if (!image || !title) {
+      return res.status(400).json({ error: 'Image ou titre manquant.' });
+    }
+
+    const buffer = Buffer.from(image.split(',')[1], 'base64');
+    const file = new AttachmentBuilder(buffer, { name: `${title}.png` });
+
+    const channel = await client.channels.fetch(process.env.CHANNEL_ID);
+    await channel.send({
+      content: `🖌️ **${title}**`,
+      files: [file],
+    });
+
+    // Réaffiche le bouton après l'œuvre
+    const drawButton = new ButtonBuilder()
+      .setCustomId('draw_button')
+      .setLabel('✏️ Dessiner une œuvre')
+      .setStyle(ButtonStyle.Primary);
+    const row = new ActionRowBuilder().addComponents(drawButton);
+
+    await channel.send({
+      content: '🎨 Clique ci-dessous pour créer une nouvelle œuvre :',
+      components: [row],
+    });
+
+    res.json({ status: '✅ Œuvre envoyée avec succès !' });
+  } catch (err) {
+    console.error('❌ Erreur dans /submit-artwork :', err);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// Quand le bot est prêt
+client.once(Events.ClientReady, async () => {
+  console.log(`✅ Bot connecté en tant que ${client.user.tag}`);
+
+  try {
+    const channel = await client.channels.fetch(process.env.CHANNEL_ID);
+    if (!channel || !channel.isTextBased()) throw new Error('Channel invalide.');
 
     const drawButton = new ButtonBuilder()
       .setCustomId('draw_button')
       .setLabel('✏️ Dessiner une œuvre')
       .setStyle(ButtonStyle.Primary);
-
     const row = new ActionRowBuilder().addComponents(drawButton);
 
     await channel.send({
       content: '🎨 Clique ci-dessous pour créer une œuvre artistique :',
       components: [row],
     });
-  } catch (e) {
-    console.error('❌ Erreur en envoyant le prompt de dessin:', e);
-  }
-}
 
-// Route POST pour recevoir l'œuvre depuis le front
-app.post('/submit-artwork', async (req, res) => {
-  const { image, title } = req.body;
-
-  if (!image || !title) {
-    return res.status(400).json({ error: 'Image et titre requis' });
-  }
-
-  try {
-    const channel = await client.channels.fetch(CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) throw new Error('Salon introuvable ou non textuel');
-
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    const attachment = new AttachmentBuilder(buffer, { name: 'oeuvre.png' });
-
-    await channel.send({
-      content: `🖼️ **Nouvelle œuvre :** ${title}`,
-      files: [attachment],
-    });
-
-    await sendDrawPrompt();
-
-    return res.json({ status: 'Artwork envoyé avec succès !' });
-  } catch (error) {
-    console.error('❌ Erreur lors de l’envoi de l’œuvre :', error);
-    return res.status(500).json({ error: 'Erreur serveur lors de l’envoi de l’œuvre' });
+    console.log('📨 Message de bienvenue envoyé dans le channel.');
+  } catch (err) {
+    console.error('❌ Erreur en envoyant le message initial :', err);
   }
 });
 
-client.once(Events.ClientReady, async () => {
-  console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
-  await sendDrawPrompt();
-});
-
+// Gestion du bouton
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isButton()) return;
 
   if (interaction.customId === 'draw_button') {
     await interaction.reply({
-      ephemeral: true,
-      content: `🖌️ Clique ici pour dessiner : https://dessin.onrender.com\nUne fois terminé, poste ton image ici avec un titre !`,
+      content: `🖌️ Clique ici pour dessiner ton œuvre : https://dessin.onrender.com`,
+      flags: 64, // équivalent à ephemeral: true
     });
   }
 });
 
+// Lancement du serveur Express
 app.listen(PORT, () => {
-  console.log(`🎉 Serveur Express lancé sur http://localhost:${PORT}`);
+  console.log(`🌐 Serveur Express en ligne sur http://localhost:${PORT}`);
 });
 
-client.login(TOKEN);
+// Connexion du bot à Discord
+client.login(process.env.DISCORD_TOKEN);
